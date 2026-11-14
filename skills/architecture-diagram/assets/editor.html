@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture Editor</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --body:#fff; --text:#000; --dimmed:#868e96; --border:#dee2e6; --surface:#f8f9fa; --edge:#adb5bd;
+  --primary:#228be6; --primary-light:#e7f5ff; --violet:#7950f2; --violet-light:#f3f0ff;
+  --green:#40c057; --green-light:#ebfbee; --red:#fa5252; --red-light:#fff5f5; --yellow:#fab005; --yellow-light:#fff9db; --yellow-text:#946800;
+  --radius:8px; --shadow:0 1px 3px rgba(0,0,0,.05),0 4px 12px rgba(0,0,0,.06);
+  --c-blue:#228be6; --c-violet:#7950f2; --c-teal:#12b886; --c-orange:#fd7e14; --c-grape:#be4bdb; --c-cyan:#15aabf;
+  --c-yellow:#fab005; --c-red:#fa5252; --c-green:#40c057; --c-pink:#e64980; --c-indigo:#4c6ef5; --c-lime:#82c91e; --c-gray:#868e96;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --body:#242424; --text:#c9c9c9; --dimmed:#828282; --border:#424242; --surface:#2e2e2e; --edge:#5c5f66;
+  --primary:#339af0; --primary-light:rgba(34,139,230,.15); --violet-light:rgba(121,80,242,.18);
+  --green-light:rgba(64,192,87,.15); --red-light:rgba(250,82,82,.15); --yellow-light:rgba(250,176,5,.15); --yellow-text:#fcc419;
+  --shadow:0 1px 3px rgba(0,0,0,.3),0 4px 12px rgba(0,0,0,.3);
+}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--body);color:var(--text);font-family:Inter,system-ui,sans-serif;font-size:14px;display:flex;flex-direction:column}
+button,input,select,textarea{font:inherit;color:inherit}
+.topbar{height:46px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:0 12px;flex-shrink:0}
+.title{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;outline:none;border-radius:4px;padding:1px 4px}
+.title:focus{background:var(--primary-light)}
+.badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.3px;background:var(--primary-light);color:var(--primary);white-space:nowrap;border:0;cursor:default}
+.badge.red{background:var(--red-light);color:var(--red);cursor:pointer}
+.badge.gray{background:var(--surface);color:var(--dimmed)}
+.btn{border:1px solid var(--border);background:var(--body);border-radius:6px;padding:5px 10px;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--surface)}
+.btn.on{background:var(--primary-light);border-color:var(--primary);color:var(--primary)}
+.btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.spacer{flex:1}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.seg button{border:0;background:none;padding:4px 10px;font-size:12.5px;cursor:pointer}
+.seg button.on{background:var(--primary);color:#fff}
+.main{flex:1;display:flex;min-height:0;position:relative}
+.canvas{position:relative;flex:1;overflow:hidden;cursor:default;touch-action:none;
+  background-image:radial-gradient(var(--border) 1px,transparent 1px);background-size:20px 20px}
+.world{position:absolute;left:0;top:0;transform-origin:0 0}
+.world svg{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+svg path.edge{pointer-events:stroke;cursor:pointer}
+svg path.hit{pointer-events:stroke;cursor:pointer;stroke:transparent;stroke-width:12;fill:none}
+.group{position:absolute;border:1.5px dashed var(--border);border-radius:12px;background:color-mix(in srgb,var(--surface) 60%,transparent);pointer-events:none}
+.group span{position:absolute;top:-10px;left:12px;background:var(--body);padding:0 6px;font-size:11px;font-weight:600;color:var(--dimmed);text-transform:uppercase;letter-spacing:.4px}
+.node{position:absolute;width:160px;border:1px solid var(--border);border-left:4px solid var(--c);border-radius:var(--radius);background:var(--body);
+  padding:7px 10px;box-shadow:var(--shadow);cursor:grab;user-select:none;font-size:13px}
+.node.note{background:var(--yellow-light);border-left-color:var(--yellow)}
+.node .k{font-size:10px;font-weight:600;text-transform:uppercase;color:var(--c);letter-spacing:.4px;display:flex;gap:6px}
+.node .k .st{color:var(--dimmed)}
+.node .n{font-weight:600;outline:none;border-radius:3px;word-break:break-word}
+.node .n[contenteditable="true"]{background:var(--primary-light);cursor:text;padding:0 2px}
+.node .sum{font-size:11.5px;color:var(--dimmed);margin-top:2px;line-height:1.35}
+.node.sel{outline:2px solid var(--primary);outline-offset:2px}
+.node.target{outline:2px dashed var(--violet);outline-offset:2px}
+.node.d-added{background:var(--green-light);border-color:var(--green)}
+.node.d-changed{background:var(--yellow-light)}
+.node.d-removed{opacity:.5;border-style:dashed;pointer-events:none}
+.node.d-removed .n{text-decoration:line-through}
+.node.st-rejected{opacity:.55}
+.node .q{position:absolute;top:-9px;right:-9px;min-width:20px;height:20px;border-radius:10px;background:var(--violet);color:#fff;font-size:10.5px;font-weight:700;display:grid;place-items:center;padding:0 5px}
+.node .q.answered{background:var(--dimmed)}
+.handle{display:none;position:absolute;width:20px;height:20px;border-radius:50%;background:var(--primary);color:#fff;font-weight:700;font-size:14px;line-height:1;place-items:center;cursor:crosshair;z-index:3}
+.handle.s{left:50%;bottom:-11px;transform:translateX(-50%)}
+.handle.e{right:-11px;top:50%;transform:translateY(-50%)}
+body:not(.review) .node:hover .handle,body:not(.review) .node.sel .handle{display:grid}
+.float{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:4px;background:var(--body);border:1px solid var(--border);
+  border-radius:10px;padding:5px;box-shadow:var(--shadow);z-index:10;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 24px)}
+.float .sep{width:1px;background:var(--border);margin:2px 3px}
+body.review .float .edit-only{display:none}
+.menu{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);background:var(--body);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);padding:4px;z-index:11;display:none;min-width:160px}
+.menu div{padding:6px 12px;border-radius:5px;cursor:pointer;display:flex;gap:8px;align-items:center;font-size:13px}
+.menu div:hover{background:var(--surface)}
+.sw{width:10px;height:10px;border-radius:2px;background:var(--c);flex-shrink:0}
+.hint{position:absolute;left:12px;top:12px;font-size:12px;color:var(--dimmed);background:var(--body);border:1px solid var(--border);border-radius:6px;padding:5px 9px;z-index:10;max-width:calc(100% - 24px)}
+.legend{position:absolute;left:12px;top:12px;background:var(--body);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;display:none;gap:10px;z-index:10;align-items:center}
+body.review .legend{display:flex}
+body.review .hint{display:none}
+.zoom{position:absolute;right:12px;bottom:14px;display:flex;gap:4px;z-index:10}
+.toast{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:var(--text);color:var(--body);padding:7px 13px;border-radius:6px;font-size:12.5px;opacity:0;transition:opacity .2s;z-index:40;pointer-events:none;max-width:90%}
+.panel{width:0;overflow:hidden;border-left:0 solid var(--border);transition:width .18s ease;flex-shrink:0;background:var(--body)}
+.panel.open{width:330px;border-left-width:1px}
+.pin{width:330px;height:100%;overflow:auto;padding:14px}
+.ph{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ph .t{font-weight:700;font-size:15px;word-break:break-word}
+.x{margin-left:auto;border:0;background:none;color:var(--dimmed);font-size:20px;cursor:pointer;line-height:1;padding:0 4px}
+.tabs2{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.tabs2 button{border:0;background:none;padding:6px 10px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs2 button.on{border-color:var(--primary);color:var(--primary);font-weight:600}
+.label{font-size:11px;font-weight:600;text-transform:uppercase;color:var(--dimmed);letter-spacing:.4px;margin:12px 0 6px}
+.field{width:100%;border:1px solid var(--border);border-radius:6px;padding:6px 9px;background:var(--body);font-size:13px}
+.field:focus{outline:2px solid var(--primary-light);border-color:var(--primary)}
+textarea.field{resize:vertical;min-height:64px;line-height:1.45}
+select.field{height:32px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:12px;margin:0 4px 4px 0;cursor:pointer}
+.msg{border-radius:8px;padding:8px 10px;font-size:12.5px;line-height:1.45;margin-bottom:8px;white-space:pre-wrap}
+.msg.user{background:var(--surface)}
+.msg.claude{background:var(--violet-light);border-left:3px solid var(--violet)}
+.msg .who{font-weight:600;font-size:11.5px;margin-bottom:2px;white-space:normal}
+.ask{display:flex;gap:6px;margin-top:6px}
+.ask textarea{flex:1;min-height:38px}
+.empty{color:var(--dimmed);font-size:13px;line-height:1.5}
+.alert{border-radius:6px;padding:8px 10px;font-size:12.5px;line-height:1.45;margin-bottom:8px;background:var(--red-light);border-left:3px solid var(--red)}
+.change{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px;line-height:1.4;word-break:break-word}
+.change .sym{font-weight:700;width:12px;flex-shrink:0}
+.row{display:flex;gap:8px;align-items:center}
+.danger{color:var(--red)}
+.status{font-size:12px;color:var(--dimmed);white-space:nowrap}
+@media (max-width:760px){.panel.open{width:100%;position:absolute;inset:0;z-index:30}.pin{width:100%}.hide-sm{display:none}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="title" id="title" contenteditable="true" spellcheck="false" title="Click to rename">…</span>
+  <span class="badge gray hide-sm" id="roundBadge"></span>
+  <button class="badge red" id="ruleBadge" style="display:none" title="Show rule violations"></button>
+  <span class="badge" id="qBadge" style="display:none;background:var(--violet-light);color:var(--violet)"></span>
+  <span class="spacer"></span>
+  <span class="status hide-sm" id="saveStatus">Loading…</span>
+  <span class="seg"><button id="modeEdit" class="on">Edit</button><button id="modeReview">Review</button></span>
+  <button class="btn" id="tglPanel" title="Details panel">☰ Details</button>
+  <button class="btn primary" id="sendBtn" title="Save a round so Claude can see what changed">Send to Claude</button>
+</div>
+<div class="main">
+  <div class="canvas" id="cv">
+    <div class="world" id="world"><div id="groups"></div><svg id="svg" width="1" height="1"></svg><div id="nodes"></div></div>
+    <div class="hint" id="hint">Double-click empty space to add · drag a node's + onto another to connect · double-click a node for details</div>
+    <div class="legend"><span style="color:var(--green)">■ added</span><span style="color:var(--yellow-text)">■ changed</span><span style="color:var(--red)">■ removed</span>
+      <span>vs</span><select id="baseSel" class="field" style="width:auto;height:26px;padding:0 6px"></select></div>
+    <div class="toast" id="toast"></div>
+    <div class="menu" id="menu"></div>
+    <div class="float">
+      <button class="btn edit-only" id="addBtn">＋ Component ▾</button>
+      <button class="btn edit-only" id="noteBtn">💬 Note</button>
+      <span class="sep edit-only"></span>
+      <button class="btn edit-only" id="layoutBtn" title="Arrange by dependency depth">⟲ Auto-layout</button>
+      <button class="btn edit-only" id="undoBtn" title="Ctrl+Z">↶ Undo</button>
+      <button class="btn" id="fitBtn" title="Fit to screen">⤢ Fit</button>
+    </div>
+  </div>
+  <div class="panel" id="panel"><div class="pin" id="pin"></div></div>
+</div>
+
+<script>
+"use strict";
+// ---------- state ----------
+let M=null, version=null, saving=false, dirty=false, saveTimer=null;
+let sel=null, selEdge=null, open=null, tab='details', mode='edit', review=null, rounds=[];
+let view={x:40,y:40,k:1};
+const undo=[];
+const $=id=>document.getElementById(id);
+const cv=$('cv'), world=$('world'), svg=$('svg'), nodesEl=$('nodes'), groupsEl=$('groups'), panel=$('panel'), pin=$('pin');
+const els={};
+const W=160;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const color=k=>{const c=(M.kinds[k]||{}).color||'gray';return c.startsWith('#')?c:`var(--c-${c})`;};
+const kindLabel=k=>(M.kinds[k]||{}).label||k;
+const node=id=>M.nodes.find(n=>n.id===id);
+const nm=id=>(node(id)||{}).name||id;
+function toast(t,ms=2200){const e=$('toast');e.textContent=t;e.style.opacity=1;clearTimeout(e._t);e._t=setTimeout(()=>e.style.opacity=0,ms);}
+function slug(s){return (s||'c').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'c';}
+function newId(base){let id=slug(base),i=2;while(node(id))id=slug(base)+'-'+(i++);return id;}
+
+// ---------- persistence ----------
+async function load(){
+  const r=await fetch('/api/model');const j=await r.json();
+  M=j.model;version=j.version;placeMissing();render();fit();status('Saved');refreshRounds();
+}
+function status(t){$('saveStatus').textContent=t;}
+function change(pushUndo=true){
+  if(pushUndo)snapshot();
+  dirty=true;status('Saving…');clearTimeout(saveTimer);saveTimer=setTimeout(save,400);
+}
+function snapshot(){undo.push(JSON.stringify(M));if(undo.length>100)undo.shift();}
+async function save(){
+  if(saving){clearTimeout(saveTimer);saveTimer=setTimeout(save,200);return;}
+  saving=true;dirty=false;
+  try{
+    const r=await fetch('/api/model',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:M,base:version})});
+    const j=await r.json();
+    if(r.status===409){M=j.model;version=j.version;placeMissing();render();toast('The file changed outside the editor (Claude?). Reloaded it; your last edit was dropped.',4000);status('Reloaded');}
+    else if(r.ok){version=j.version;status('Saved');}
+    else status('Save failed');
+  }catch(e){status('Offline: not saved');dirty=true;}
+  saving=false;
+}
+async function poll(){
+  if(saving||dirty||document.activeElement?.isContentEditable)return;
+  try{const j=await (await fetch('/api/version')).json();
+    if(j.version!==version){const r=await (await fetch('/api/model')).json();M=r.model;version=r.version;
+      if(placeMissing())change(false);render();toast('Diagram updated from the file');refreshRounds();}
+  }catch(e){status('Server not reachable');}
+}
+setInterval(poll,1500);
+async function refreshRounds(){
+  try{rounds=await (await fetch('/api/rounds')).json();}catch(e){rounds=[];}
+  const last=rounds[rounds.length-1];
+  $('roundBadge').textContent=last?`round ${last.n} · ${last.by==='claude'?'Claude':'you'}`:'no rounds yet';
+  $('baseSel').innerHTML=rounds.map(r=>`<option value="${r.n}">round ${r.n} (${r.by==='claude'?'Claude':'you'})</option>`).join('')||'<option value="">no rounds</option>';
+  const mine=[...rounds].reverse().find(r=>r.by==='user')||last;
+  if(mine)$('baseSel').value=mine.n;
+}
+
+// ---------- layout ----------
+function depth(){
+  const d={},adj={};M.nodes.forEach(n=>{adj[n.id]=[];});
+  M.edges.forEach(e=>{if(adj[e.from])adj[e.from].push(e.to);});
+  const indeg={};M.nodes.forEach(n=>indeg[n.id]=0);M.edges.forEach(e=>{if(e.to in indeg)indeg[e.to]++;});
+  const seen=new Set();
+  const visit=(id,lv,stack)=>{if(stack.has(id))return;d[id]=Math.max(d[id]??0,lv);if(seen.has(id+':'+lv))return;seen.add(id+':'+lv);stack.add(id);adj[id].forEach(t=>visit(t,lv+1,stack));stack.delete(id);};
+  M.nodes.filter(n=>!indeg[n.id]).forEach(n=>visit(n.id,0,new Set()));
+  M.nodes.forEach(n=>{if(d[n.id]==null)visit(n.id,0,new Set());});
+  return d;
+}
+function autoLayout(){
+  // Groups become horizontal bands ordered by their shallowest member; inside a band, one row per dependency depth.
+  const d=depth(),bands={};
+  M.nodes.filter(n=>n.kind!=='note').forEach(n=>{(bands[n.group||'']=bands[n.group||'']||[]).push(n);});
+  const order=Object.keys(bands).sort((a,b)=>Math.min(...bands[a].map(n=>d[n.id]))-Math.min(...bands[b].map(n=>d[n.id]))||
+    Math.max(...bands[a].map(n=>d[n.id]))-Math.max(...bands[b].map(n=>d[n.id])));
+  let y=0;
+  order.forEach(g=>{
+    const rows={};bands[g].forEach(n=>{(rows[d[n.id]]=rows[d[n.id]]||[]).push(n);});
+    Object.keys(rows).map(Number).sort((a,b)=>a-b).forEach(lv=>{
+      rows[lv].sort((a,b)=>(a.x??0)-(b.x??0)).forEach((n,i)=>{n.x=i*200;n.y=y;});y+=130;});
+    y+=50;
+  });
+  M.nodes.filter(n=>n.kind==='note').forEach((n,i)=>{if(typeof n.x!=='number'){n.x=-220;n.y=i*90;}});
+}
+function placeMissing(){
+  const miss=M.nodes.filter(n=>typeof n.x!=='number'||typeof n.y!=='number');
+  if(!miss.length)return false;
+  if(miss.length===M.nodes.length){autoLayout();return true;}
+  const set=new Set(miss),d=depth();
+  miss.forEach(n=>{
+    // Next to placed nodes of the same group and depth, else of the same group, else of the same depth.
+    const placed=M.nodes.filter(o=>!set.has(o)&&o!==n);
+    const peers=placed.filter(o=>n.group&&o.group===n.group);
+    const same=peers.filter(o=>d[o.id]===d[n.id]);
+    const y=same.length?same[0].y:peers.length?Math.max(...peers.map(o=>o.y))+130:(placed.find(o=>d[o.id]===d[n.id])||{y:(d[n.id]||0)*130}).y;
+    const xs=placed.filter(o=>Math.abs(o.y-y)<60).map(o=>o.x);
+    n.x=(xs.length?Math.max(...xs)+200:0);n.y=y;set.delete(n);
+  });
+  return true;
+}
+
+// ---------- view (pan/zoom) ----------
+function applyView(){world.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.k})`;}
+function fit(){
+  if(!M.nodes.length){view={x:40,y:40,k:1};applyView();return;}
+  const xs=M.nodes.map(n=>n.x),ys=M.nodes.map(n=>n.y);
+  const minx=Math.min(...xs)-30,miny=Math.min(...ys)-40,maxx=Math.max(...xs)+W+30,maxy=Math.max(...ys)+110;
+  const r=cv.getBoundingClientRect();
+  const k=Math.min(1.2,Math.max(.3,Math.min(r.width/(maxx-minx),(r.height-70)/(maxy-miny))));
+  view={k,x:(r.width-(maxx-minx)*k)/2-minx*k,y:Math.max(10,(r.height-70-(maxy-miny)*k)/2)-miny*k};applyView();
+}
+function toWorld(cx,cy){const r=cv.getBoundingClientRect();return{x:(cx-r.left-view.x)/view.k,y:(cy-r.top-view.y)/view.k};}
+cv.addEventListener('wheel',e=>{e.preventDefault();const p=toWorld(e.clientX,e.clientY);const k=Math.min(2,Math.max(.25,view.k*(e.deltaY<0?1.1:1/1.1)));
+  const r=cv.getBoundingClientRect();view.x=e.clientX-r.left-p.x*k;view.y=e.clientY-r.top-p.y*k;view.k=k;applyView();},{passive:false});
+cv.addEventListener('pointerdown',e=>{
+  if(!(e.target===cv||e.target===world||e.target===svg||e.target===nodesEl||e.target===groupsEl||e.target.classList.contains('group')))return;
+  sel=null;selEdge=null;markSel();drawEdges();$('menu').style.display='none';
+  const sx=e.clientX,sy=e.clientY,ox=view.x,oy=view.y;cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing';
+  const mv=ev=>{view.x=ox+ev.clientX-sx;view.y=oy+ev.clientY-sy;applyView();};
+  const up=()=>{cv.removeEventListener('pointermove',mv);cv.removeEventListener('pointerup',up);cv.style.cursor='';};
+  cv.addEventListener('pointermove',mv);cv.addEventListener('pointerup',up);
+});
+cv.addEventListener('dblclick',e=>{
+  if(mode!=='edit'||e.target.closest('.node')||e.target.closest('.float'))return;
+  const p=toWorld(e.clientX,e.clientY);addNode('module',p.x-W/2,p.y-20);
+});
+
+// ---------- rules / diff ----------
+function matches(s,n){if(s==='*')return true;const [k,...v]=s.split(':');return ({id:n.id,kind:n.kind,group:n.group})[k]===v.join(':');}
+function violations(m=M){
+  const out=[];const by={};m.nodes.forEach(n=>by[n.id]=n);
+  m.edges.forEach((e,i)=>{const a=by[e.from],b=by[e.to];if(!a||!b)return;
+    (m.rules||[]).forEach(r=>{if(r.edgeKind&&r.edgeKind!==e.kind)return;if(!matches(r.from||'*',a))return;
+      const bad=r.only?!r.only.some(s=>matches(s,b)):matches(r.to||'*',b);
+      if(bad)out.push({edge:i,text:r.text||r.id||'rule',a:a.name,b:b.name});});});
+  return out;
+}
+const F=['name','kind','group','summary','job','data','status'];
+function computeDiff(base){
+  const bn={},cn={};base.nodes.forEach(n=>bn[n.id]=n);M.nodes.forEach(n=>cn[n.id]=n);
+  const key=e=>e.from+'→'+e.to;const be={},ce={};base.edges.forEach(e=>be[key(e)]=e);M.edges.forEach(e=>ce[key(e)]=e);
+  const nodes={},edges={},removedNodes=[],removedEdges=[],list=[];
+  M.nodes.forEach(n=>{if(!bn[n.id]){nodes[n.id]='added';list.push(['+',`${n.name} added`,n.id]);return;}
+    const ch=F.filter(f=>(bn[n.id][f]??'')!==(n[f]??''));
+    const nt=(n.thread||[]).length-(bn[n.id].thread||[]).length;
+    if(ch.length){nodes[n.id]='changed';list.push(['~',`${n.name}: ${ch.join(', ')} changed`,n.id]);}
+    if(nt>0)list.push(['?',`${n.name}: ${nt} new message${nt>1?'s':''}`,n.id]);});
+  base.nodes.forEach(n=>{if(!cn[n.id]){removedNodes.push(n);list.push(['−',`${n.name} removed`,null]);}});
+  M.edges.forEach(e=>{const k=key(e);if(!be[k]){edges[k]='added';list.push(['+',`${nm(e.from)} → ${nm(e.to)}`,null]);}
+    else if((be[k].kind||'')!==(e.kind||'')||(be[k].why||'')!==(e.why||'')){edges[k]='changed';list.push(['~',`${nm(e.from)} → ${nm(e.to)} changed`,null]);}});
+  base.edges.forEach(e=>{if(!ce[key(e)]){removedEdges.push(e);list.push(['−',`${(bn[e.from]||{}).name||e.from} → ${(bn[e.to]||{}).name||e.to}`,null]);}});
+  return {nodes,edges,removedNodes,removedEdges,list,base};
+}
+
+// ---------- render ----------
+function render(){
+  $('title').textContent=M.title||'Architecture';document.title=M.title||'Architecture Editor';
+  nodesEl.innerHTML='';Object.keys(els).forEach(k=>delete els[k]);
+  M.nodes.forEach(mkNode);
+  if(review)review.removedNodes.forEach(n=>{const d=document.createElement('div');d.className='node d-removed';
+    d.style.cssText=`left:${n.x}px;top:${n.y}px;--c:${color(n.kind)}`;d.innerHTML=`<div class="k">${esc(kindLabel(n.kind))}</div><div class="n">${esc(n.name)}</div>`;nodesEl.appendChild(d);els['__rm_'+n.id]=d;});
+  requestAnimationFrame(()=>{drawGroups();drawEdges();});
+  badges();
+  if(panel.classList.contains('open'))renderPanel();
+}
+function mkNode(n){
+  const d=document.createElement('div');d.dataset.id=n.id;els[n.id]=d;nodesEl.appendChild(d);paintNode(n);
+  d.addEventListener('pointerdown',e=>{
+    if(e.button!==0)return;
+    if(e.target.classList.contains('handle')){if(mode==='edit')startLink(e,n);return;}
+    if(e.target.isContentEditable)return;
+    e.stopPropagation();selectNode(n.id);
+    if(mode!=='edit')return;
+    const sx=e.clientX,sy=e.clientY,ox=n.x,oy=n.y;let moved=false;d.setPointerCapture(e.pointerId);
+    const mv=ev=>{const dx=(ev.clientX-sx)/view.k,dy=(ev.clientY-sy)/view.k;if(!moved&&Math.hypot(dx,dy)<3)return;
+      if(!moved){snapshot();moved=true;}n.x=Math.round(ox+dx);n.y=Math.round(oy+dy);d.style.left=n.x+'px';d.style.top=n.y+'px';drawEdges();drawGroups();};
+    const up=()=>{d.removeEventListener('pointermove',mv);d.removeEventListener('pointerup',up);if(moved)change(false);};
+    d.addEventListener('pointermove',mv);d.addEventListener('pointerup',up);
+  });
+  d.addEventListener('dblclick',e=>{e.stopPropagation();if(!e.target.isContentEditable)openPanel({node:n.id});});
+}
+function paintNode(n){
+  const d=els[n.id];const t=n.thread||[];const pending=t.length&&t[t.length-1].by==='user';
+  const ds=review?review.nodes[n.id]:null;
+  d.className='node'+(n.kind==='note'?' note':'')+(sel===n.id?' sel':'')+(ds?' d-'+ds:'')+(n.status==='rejected'?' st-rejected':'');
+  d.style.cssText=`left:${n.x}px;top:${n.y}px;--c:${color(n.kind)}`;
+  d.innerHTML=`<div class="k"><span>${esc(kindLabel(n.kind))}</span>${n.status&&n.status!=='agreed'?`<span class="st">· ${esc(n.status)}</span>`:''}</div><div class="n">${esc(n.name)}</div>`+
+    (n.summary?`<div class="sum">${esc(n.summary)}</div>`:'')+
+    `<div class="handle s" title="Click: add a component this depends on · Drag onto a node: add a dependency">+</div><div class="handle e" title="Click: add a component this depends on · Drag onto a node: add a dependency">+</div>`+
+    (t.length?`<div class="q${pending?'':' answered'}" title="${pending?'Waiting for Claude':'Answered'}">💬${t.length>1?' '+t.length:''}</div>`:'');
+  d.querySelector('.n').addEventListener('click',()=>{if(sel===n.id&&mode==='edit')rename(n);});
+}
+function markSel(){Object.entries(els).forEach(([id,d])=>d.classList.toggle('sel',id===sel));}
+function selectNode(id){sel=id;selEdge=null;markSel();drawEdges();if(open&&open.node!==id&&panel.classList.contains('open'))openPanel({node:id});}
+function rename(n){
+  const el=els[n.id].querySelector('.n');el.contentEditable='true';el.focus();document.getSelection().selectAllChildren(el);
+  const done=()=>{el.contentEditable='false';const v=el.textContent.trim();if(v&&v!==n.name){snapshot();n.name=v;change(false);}paintNode(n);if(open)renderPanel();};
+  el.onblur=done;el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();el.blur();}if(e.key==='Escape'){el.textContent=n.name;el.blur();}e.stopPropagation();};
+}
+function box(id){const d=els[id];const n=node(id)||(review&&review.removedNodes.find(x=>x.id===id));if(!d||!n)return null;return{x:n.x,y:n.y,w:d.offsetWidth||W,h:d.offsetHeight||50};}
+function route(a,b){
+  let x1=a.x+a.w/2,y1=a.y+a.h,x2=b.x+b.w/2,y2=b.y;
+  if(b.y+b.h<a.y){y1=a.y;y2=b.y+b.h;}
+  else if(!(b.y>a.y+a.h)){y1=a.y+a.h/2;y2=b.y+b.h/2;x1=b.x>a.x?a.x+a.w:a.x;x2=b.x>a.x?b.x:b.x+b.w;
+    const mx=(x1+x2)/2;return `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;}
+  const my=(y1+y2)/2;return `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`;
+}
+function drawEdges(){
+  const viol=new Set(violations().map(v=>v.edge));
+  let h='<defs>'+['edge','primary','red','green','violet'].map(c=>`<marker id="ar-${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--${c})"/></marker>`).join('')+'</defs>';
+  const all=M.edges.map((e,i)=>({e,i}));
+  if(review)review.removedEdges.forEach(e=>all.push({e,i:-1,removed:true}));
+  all.forEach(({e,i,removed})=>{
+    const a=box(e.from)||box('__rm_'+e.from),b=box(e.to)||box('__rm_'+e.to);if(!a||!b)return;
+    const ds=review&&!removed?review.edges[e.from+'→'+e.to]:null;
+    let c='edge',w=1.6,dash=e.kind!=='depends on'?'6 4':'';
+    if(viol.has(i)){c='red';w=2.2;}
+    if(ds==='added'){c='green';w=2.2;}
+    if(removed){c='red';dash='4 4';}
+    if(i===selEdge){c='primary';w=3;}
+    const d=route(a,b);
+    h+=`<path d="${d}" fill="none" stroke="var(--${c})" stroke-width="${w}" ${dash?`stroke-dasharray="${dash}"`:''} marker-end="url(#ar-${c})"/>`;
+    const t=e.thread||[];
+    if(e.kind!=='depends on'||viol.has(i)||t.length){const p=d.match(/-?[\d.]+/g).map(Number);const mx=(p[0]+p[p.length-2])/2,my=(p[1]+p[p.length-1])/2;
+      const lab=(viol.has(i)?'✕ ':'')+(e.kind!=='depends on'?e.kind:'')+(t.length?' 💬':'');
+      h+=`<text x="${mx+6}" y="${my-4}" font-size="11" font-weight="600" fill="var(--${viol.has(i)?'red':'dimmed'})">${esc(lab.trim())}</text>`;}
+    if(!removed)h+=`<path class="hit" data-i="${i}" d="${d}"/>`;
+  });
+  svg.innerHTML=h;
+  svg.querySelectorAll('path.hit').forEach(p=>{const i=+p.dataset.i;
+    p.addEventListener('pointerdown',e=>{e.stopPropagation();sel=null;selEdge=i;markSel();drawEdges();});
+    p.addEventListener('dblclick',e=>{e.stopPropagation();openPanel({edge:i});});});
+}
+function drawGroups(){
+  groupsEl.innerHTML='';
+  (M.groups||[]).forEach(g=>{const ms=M.nodes.filter(n=>n.group===g.id);if(!ms.length)return;
+    const bs=ms.map(n=>box(n.id)).filter(Boolean);
+    const x=Math.min(...bs.map(b=>b.x))-18,y=Math.min(...bs.map(b=>b.y))-22,x2=Math.max(...bs.map(b=>b.x+b.w))+18,y2=Math.max(...bs.map(b=>b.y+b.h))+18;
+    const d=document.createElement('div');d.className='group';d.style.cssText=`left:${x}px;top:${y}px;width:${x2-x}px;height:${y2-y}px`;
+    d.innerHTML=`<span>${esc(g.label||g.id)}</span>`;groupsEl.appendChild(d);});
+}
+function badges(){
+  const v=violations();$('ruleBadge').style.display=v.length?'':'none';$('ruleBadge').textContent=`${v.length} rule${v.length>1?'s':''} broken`;
+  const q=[...M.nodes,...M.edges].filter(x=>{const t=x.thread||[];return t.length&&t[t.length-1].by==='user';}).length;
+  $('qBadge').style.display=q?'':'none';$('qBadge').textContent=`${q} waiting for Claude`;
+  $('hint').style.display=M.nodes.length>3?'none':'';
+}
+
+// ---------- editing ----------
+function addNode(kind,x,y,from){
+  snapshot();const n={id:newId(kind==='note'?'note':'new-component'),name:kind==='note'?'Note':'new-component',kind,x:Math.round(x),y:Math.round(y)};
+  M.nodes.push(n);if(from)M.edges.push({id:`${from.id}->${n.id}`,from:from.id,to:n.id,kind:'depends on'});
+  change(false);mkNode(n);selectNode(n.id);drawEdges();drawGroups();badges();rename(n);return n;
+}
+function startLink(e,from){
+  e.stopPropagation();const h=e.target,sx=e.clientX,sy=e.clientY;let moved=false,tgt=null;
+  const temp=document.createElementNS('http://www.w3.org/2000/svg','path');temp.setAttribute('stroke','var(--violet)');temp.setAttribute('stroke-width','2');temp.setAttribute('fill','none');temp.setAttribute('stroke-dasharray','5 4');
+  h.setPointerCapture(e.pointerId);const p0=toWorld(sx,sy);
+  const mv=ev=>{if(Math.hypot(ev.clientX-sx,ev.clientY-sy)>6)moved=true;if(!moved)return;if(!temp.parentNode)svg.appendChild(temp);
+    const p=toWorld(ev.clientX,ev.clientY);temp.setAttribute('d',`M${p0.x},${p0.y} L${p.x},${p.y}`);
+    const under=document.elementsFromPoint(ev.clientX,ev.clientY).find(x=>x.classList&&x.classList.contains('node')&&x.dataset.id&&x.dataset.id!==from.id);
+    Object.values(els).forEach(x=>x.classList.remove('target'));tgt=null;if(under){under.classList.add('target');tgt=under.dataset.id;}};
+  const up=()=>{h.removeEventListener('pointermove',mv);h.removeEventListener('pointerup',up);temp.remove();Object.values(els).forEach(x=>x.classList.remove('target'));
+    if(!moved){const below=h.classList.contains('s');addNode('module',from.x+(below?0:210),from.y+(below?130:0),from);toast(`Added a component ${from.name} depends on. Type its name.`);}
+    else if(tgt){if(M.edges.some(x=>x.from===from.id&&x.to===tgt))toast('That dependency already exists');
+      else{snapshot();M.edges.push({id:`${from.id}->${tgt}`,from:from.id,to:tgt,kind:'depends on'});change(false);drawEdges();badges();
+        const v=violations().filter(v=>v.a===from.name&&v.b===nm(tgt));toast(v.length?`⚠ ${from.name} → ${nm(tgt)} breaks a rule: ${v[0].text}`:`${from.name} → ${nm(tgt)}`,v.length?4500:2200);}}};
+  h.addEventListener('pointermove',mv);h.addEventListener('pointerup',up);
+}
+function deleteNode(id){snapshot();M.nodes=M.nodes.filter(n=>n.id!==id);M.edges=M.edges.filter(e=>e.from!==id&&e.to!==id);sel=null;if(open&&open.node===id)closePanel();change(false);render();}
+function deleteEdge(i){snapshot();M.edges.splice(i,1);selEdge=null;if(open&&open.edge!=null)closePanel();change(false);render();}
+
+// ---------- panel ----------
+function openPanel(o){open=o;if(o.node)sel=o.node;panel.classList.add('open');$('tglPanel').classList.add('on');markSel();renderPanel();}
+function closePanel(){open=null;panel.classList.remove('open');$('tglPanel').classList.remove('on');}
+function thread(obj,placeholder){
+  const t=obj.thread||[];
+  return (t.map(m=>`<div class="msg ${m.by==='claude'?'claude':'user'}"><div class="who">${m.by==='claude'?'Claude':'You'}${m.at?` · <span style="font-weight:400;color:var(--dimmed)">${esc(m.at.slice(0,16).replace('T',' '))}</span>`:''}</div>${esc(m.text)}</div>`).join('')
+    ||'<p class="empty">No questions yet. Ask anything about this; Claude answers here when you send the round, and the thread stays pinned to it.</p>')+
+    `<div class="ask"><textarea class="field" id="qi" placeholder="${esc(placeholder)}"></textarea><button class="btn primary" id="qb">Ask</button></div>`;
+}
+function wireAsk(obj){
+  const qb=$('qb');if(!qb)return;const send=()=>{const v=$('qi').value.trim();if(!v)return;snapshot();(obj.thread=obj.thread||[]).push({by:'user',text:v,at:new Date().toISOString()});change(false);render();tab='ask';renderPanel();toast('Saved. Click "Send to Claude" when you are ready for answers.');};
+  qb.onclick=send;$('qi').onkeydown=e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send();};
+}
+function bindField(id,obj,key,after){const el=$(id);if(!el)return;let snap=false;
+  el.addEventListener('input',()=>{if(!snap){snapshot();snap=true;}const v=el.value;if(v)obj[key]=v;else delete obj[key];change(false);if(after)after();});
+  el.addEventListener('blur',()=>{snap=false;});}
+function renderPanel(){
+  if(!open){
+    const v=violations();
+    pin.innerHTML=`<div class="ph"><span class="t">Overview</span><button class="x" onclick="closePanel()">×</button></div>`+
+      (review?`<div class="label">Changes vs round ${review.base._round?.n??''}</div>`+(review.list.map(([s,t,id])=>`<div class="change" ${id?`data-id="${esc(id)}" style="cursor:pointer"`:''}><span class="sym" style="color:var(--${s==='+'?'green':s==='−'?'red':s==='?'?'violet':'yellow-text'})">${s}</span><span>${esc(t)}</span></div>`).join('')||'<p class="empty">No changes.</p>'):'')+
+      `<div class="label">Rule checks</div>`+(v.map(x=>`<div class="alert"><b>${esc(x.a)} → ${esc(x.b)}</b><br>${esc(x.text)}</div>`).join('')||'<p class="empty">No rule broken.</p>')+
+      `<div class="label">Rules</div>`+((M.rules||[]).map(r=>`<div class="empty">• ${esc(r.text||r.id)}</div>`).join('')||'<p class="empty">No rules yet. Ask Claude to add the ones your design must keep.</p>')+
+      `<div class="label">Open questions</div>`+([...M.nodes].filter(n=>{const t=n.thread||[];return t.length&&t[t.length-1].by==='user';}).map(n=>`<div class="chip" data-id="${esc(n.id)}">${esc(n.name)}</div>`).join('')||'<p class="empty">None waiting.</p>');
+    pin.querySelectorAll('[data-id]').forEach(c=>c.onclick=()=>{openPanel({node:c.dataset.id});});
+    return;
+  }
+  if(open.edge!=null){const e=M.edges[open.edge];if(!e){closePanel();return;}
+    const kinds=['depends on','calls','sends events to','reads data from','writes data to'];if(!kinds.includes(e.kind))kinds.push(e.kind);
+    pin.innerHTML=`<div class="ph"><span class="t">${esc(nm(e.from))} → ${esc(nm(e.to))}</span><button class="x" onclick="closePanel()" title="Close (Esc)">×</button></div>
+    <div class="tabs2"><button data-t="details" class="${tab==='details'?'on':''}">Details</button><button data-t="ask" class="${tab==='ask'?'on':''}">Ask${(e.thread||[]).length?` (${e.thread.length})`:''}</button></div>`+
+    (tab==='details'?`<div class="label">Relationship</div><select class="field" id="ek" ${mode!=='edit'?'disabled':''}>${kinds.map(k=>`<option ${k===e.kind?'selected':''}>${esc(k)}</option>`).join('')}</select>
+      <div class="label">What crosses it / why</div><textarea class="field" id="ew" placeholder="e.g. typed requests over the socket">${esc(e.why||'')}</textarea>
+      ${violations().filter(v=>v.edge===open.edge).map(v=>`<div class="alert" style="margin-top:12px">${esc(v.text)}</div>`).join('')}
+      <div style="margin-top:14px"><button class="btn danger" id="delE">Delete dependency</button></div>`:thread(e,'Is this dependency allowed? Should it go through something else?'));
+    pin.querySelectorAll('.tabs2 button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;renderPanel();});
+    const ek=$('ek');if(ek)ek.onchange=()=>{snapshot();e.kind=ek.value;change(false);drawEdges();};
+    bindField('ew',e,'why');const de=$('delE');if(de)de.onclick=()=>deleteEdge(open.edge);wireAsk(e);return;}
+  const n=node(open.node);if(!n){closePanel();return;}
+  const t=n.thread||[];
+  const deps=M.edges.filter(e=>e.from===n.id),used=M.edges.filter(e=>e.to===n.id);
+  pin.innerHTML=`<div class="ph"><span class="sw" style="--c:${color(n.kind)}"></span><span class="t">${esc(n.name)}</span><button class="x" onclick="closePanel()" title="Close (Esc)">×</button></div>
+  <div class="tabs2"><button data-t="details" class="${tab==='details'?'on':''}">Details</button><button data-t="ask" class="${tab==='ask'?'on':''}">Ask${t.length?` (${t.length})`:''}</button></div>`+
+  (tab==='details'?`
+    <div class="row"><div style="flex:1"><div class="label">Kind</div><select class="field" id="fk">${Object.entries(M.kinds).map(([k,v])=>`<option value="${esc(k)}" ${k===n.kind?'selected':''}>${esc(v.label||k)}</option>`).join('')}</select></div>
+    <div style="flex:1"><div class="label">Status</div><select class="field" id="fs">${['','proposed','agreed','rejected'].map(s=>`<option value="${s}" ${(n.status||'')===s?'selected':''}>${s||'—'}</option>`).join('')}</select></div></div>
+    <div class="label">Group</div><select class="field" id="fg"><option value="">—</option>${(M.groups||[]).map(g=>`<option value="${esc(g.id)}" ${n.group===g.id?'selected':''}>${esc(g.label||g.id)}</option>`).join('')}<option value="__new">＋ New group…</option></select>
+    <div class="label">One-line summary (shown on the card)</div><input class="field" id="fsum" value="${esc(n.summary||'')}" placeholder="What it is in a few words">
+    <div class="label">Job / responsibilities</div><textarea class="field" id="fjob" placeholder="What it owns, what it must never do">${esc(n.job||'')}</textarea>
+    <div class="label">Data it owns</div><input class="field" id="fdata" value="${esc(n.data||'')}" placeholder="e.g. sess_ tables">
+    <div class="label">Depends on</div><div>${deps.map(e=>`<span class="chip" data-id="${esc(e.to)}">${esc(nm(e.to))}${e.kind!=='depends on'?` · ${esc(e.kind)}`:''}</span>`).join('')||'<span class="empty">Nothing</span>'}</div>
+    <div class="label">Used by</div><div>${used.map(e=>`<span class="chip" data-id="${esc(e.from)}">${esc(nm(e.from))}</span>`).join('')||'<span class="empty">Nothing</span>'}</div>
+    <div style="margin-top:16px"><button class="btn danger" id="delN">Delete component</button></div>`
+  :thread(n,`Ask about ${n.name}…`));
+  pin.querySelectorAll('.tabs2 button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;renderPanel();});
+  pin.querySelectorAll('.chip[data-id]').forEach(c=>c.onclick=()=>{selectNode(c.dataset.id);openPanel({node:c.dataset.id});});
+  const fk=$('fk');if(fk)fk.onchange=()=>{snapshot();n.kind=fk.value;change(false);paintNode(n);drawEdges();badges();renderPanel();};
+  const fs=$('fs');if(fs)fs.onchange=()=>{snapshot();if(fs.value)n.status=fs.value;else delete n.status;change(false);paintNode(n);};
+  const fg=$('fg');if(fg)fg.onchange=()=>{let v=fg.value;snapshot();
+    if(v==='__new'){const label=prompt('New group name');if(!label){renderPanel();return;}v=slug(label);M.groups=M.groups||[];if(!M.groups.some(g=>g.id===v))M.groups.push({id:v,label});}
+    if(v)n.group=v;else delete n.group;change(false);drawGroups();drawEdges();badges();renderPanel();};
+  bindField('fsum',n,'summary',()=>{paintNode(n);drawEdges();});bindField('fjob',n,'job');bindField('fdata',n,'data');
+  const dn=$('delN');if(dn)dn.onclick=()=>deleteNode(n.id);
+  wireAsk(n);
+  if(mode!=='edit')pin.querySelectorAll('input,select,#fjob,#delN').forEach(x=>x.disabled=true);
+}
+
+// ---------- toolbar / modes ----------
+const menu=$('menu');
+function buildMenu(){menu.innerHTML=Object.entries(M.kinds).filter(([k])=>k!=='note').map(([k,v])=>`<div data-k="${esc(k)}"><span class="sw" style="--c:${color(k)}"></span>${esc(v.label||k)}</div>`).join('');
+  menu.querySelectorAll('div').forEach(m=>m.onclick=()=>{menu.style.display='none';const r=cv.getBoundingClientRect();const p=toWorld(r.left+r.width/2,r.top+r.height/2);addNode(m.dataset.k,p.x-W/2,p.y-25);});}
+$('addBtn').onclick=e=>{e.stopPropagation();buildMenu();menu.style.display=menu.style.display==='block'?'none':'block';};
+$('noteBtn').onclick=()=>{const r=cv.getBoundingClientRect();const p=toWorld(r.left+r.width/2,r.top+r.height/2);if(!M.kinds.note)M.kinds.note={label:'Note',color:'yellow'};addNode('note',p.x-W/2,p.y-25);};
+$('layoutBtn').onclick=()=>{snapshot();autoLayout();change(false);render();fit();};
+$('undoBtn').onclick=doUndo;
+$('fitBtn').onclick=fit;
+function doUndo(){const s=undo.pop();if(!s){toast('Nothing to undo');return;}M=JSON.parse(s);change(false);render();}
+$('tglPanel').onclick=()=>{if(panel.classList.contains('open'))closePanel();else{open=sel?{node:sel}:(selEdge!=null?{edge:selEdge}:null);panel.classList.add('open');$('tglPanel').classList.add('on');renderPanel();}};
+$('ruleBadge').onclick=()=>{open=null;panel.classList.add('open');$('tglPanel').classList.add('on');renderPanel();};
+$('title').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.target.blur();}e.stopPropagation();});
+$('title').addEventListener('blur',e=>{const v=e.target.textContent.trim();if(v&&v!==M.title){snapshot();M.title=v;change(false);}});
+async function setMode(m){
+  mode=m;$('modeEdit').classList.toggle('on',m==='edit');$('modeReview').classList.toggle('on',m==='review');document.body.classList.toggle('review',m==='review');
+  if(m==='review'){await refreshRounds();const n=$('baseSel').value;
+    if(!n){toast('No rounds yet. "Send to Claude" saves the first one.');review=null;}
+    else{const base=await (await fetch('/api/rounds/'+n)).json();review=computeDiff(base);open=null;panel.classList.add('open');$('tglPanel').classList.add('on');}}
+  else review=null;
+  render();
+}
+$('modeEdit').onclick=()=>setMode('edit');$('modeReview').onclick=()=>setMode('review');
+$('baseSel').onchange=()=>setMode('review');
+$('sendBtn').onclick=async()=>{
+  clearTimeout(saveTimer);if(dirty)await save();
+  const r=await fetch('/api/round',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const j=await r.json();
+  await refreshRounds();toast(`Round ${j.n} saved. Now tell Claude in the chat: "check the diagram".`,6000);
+};
+addEventListener('keydown',e=>{
+  const t=e.target;if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)return;
+  if(e.key==='Escape'){closePanel();menu.style.display='none';}
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'&&mode==='edit'){e.preventDefault();doUndo();}
+  if(mode!=='edit')return;
+  if(e.key==='F2'&&sel){e.preventDefault();rename(node(sel));}
+  if(e.key==='Enter'&&sel){e.preventDefault();openPanel({node:sel});}
+  if(e.key==='Delete'||e.key==='Backspace'){if(sel)deleteNode(sel);else if(selEdge!=null)deleteEdge(selEdge);}
+});
+addEventListener('beforeunload',e=>{if(dirty){save();e.preventDefault();}});
+load().catch(()=>status('Could not load the model'));
+</script>
+</body>
+</html>
